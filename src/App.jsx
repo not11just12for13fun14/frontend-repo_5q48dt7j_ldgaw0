@@ -1,71 +1,133 @@
+import { useEffect, useMemo, useState } from 'react'
+import Header from './components/Header'
+import ProductCard from './components/ProductCard'
+import SellForm from './components/SellForm'
+import OrderDrawer from './components/OrderDrawer'
+
+const baseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
 function App() {
+  const [currentTab, setCurrentTab] = useState('browse')
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [cart, setCart] = useState([])
+
+  const fetchProducts = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`${baseUrl}/api/products`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Failed to load')
+      setProducts(data)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchProducts() }, [])
+
+  const handleAddToCart = (p) => {
+    setCart(prev => {
+      const existing = prev.find(i => i._id === p._id)
+      if (existing) return prev.map(i => i._id === p._id ? { ...i, qty: i.qty + 1 } : i)
+      return [...prev, { ...p, qty: 1 }]
+    })
+    setCurrentTab('orders')
+  }
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return
+    const items = cart.map(c => ({ product_id: c._id, quantity: c.qty }))
+    const order = {
+      buyer_name: 'Guest',
+      shipping_address: 'To be provided',
+      items
+    }
+    try {
+      const res = await fetch(`${baseUrl}/api/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(order) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Order failed')
+      setCart([])
+      alert('Order placed!')
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Subtle pattern overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_50%)]"></div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <Header currentTab={currentTab} setCurrentTab={setCurrentTab} cartCount={cart.length} />
 
-      <div className="relative min-h-screen flex items-center justify-center p-8">
-        <div className="max-w-2xl w-full">
-          {/* Header with Flames icon */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center mb-6">
-              <img
-                src="/flame-icon.svg"
-                alt="Flames"
-                className="w-24 h-24 drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]"
-              />
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {currentTab === 'browse' && (
+          <div>
+            <div className="flex items-end justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-800">Discover products</h2>
+                <p className="text-slate-500 text-sm">Fresh picks from independent sellers</p>
+              </div>
+              <button onClick={fetchProducts} className="text-sm px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50">Refresh</button>
             </div>
-
-            <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
-              Flames Blue
-            </h1>
-
-            <p className="text-xl text-blue-200 mb-6">
-              Build applications through conversation
-            </p>
+            {loading ? (
+              <p className="text-slate-600">Loading...</p>
+            ) : error ? (
+              <p className="text-rose-600">{error}</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {products.map(p => (
+                  <ProductCard key={p._id} product={p} onAdd={handleAddToCart} />
+                ))}
+              </div>
+            )}
           </div>
+        )}
 
-          {/* Instructions */}
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-8 shadow-xl mb-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                1
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Describe your idea</h3>
-                <p className="text-blue-200/80 text-sm">Use the chat panel on the left to tell the AI what you want to build</p>
-              </div>
+        {currentTab === 'sell' && (
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <h2 className="text-2xl font-semibold text-slate-800 mb-4">Sell a product</h2>
+              <SellForm onCreated={fetchProducts} />
+              <p className="text-xs text-slate-500 mt-3">Share clear details and a nice image to attract buyers.</p>
             </div>
-
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                2
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Watch it build</h3>
-                <p className="text-blue-200/80 text-sm">Your app will appear in this preview as the AI generates the code</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                3
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Refine and iterate</h3>
-                <p className="text-blue-200/80 text-sm">Continue the conversation to add features and make changes</p>
-              </div>
+            <div>
+              <OrderDrawer cart={cart} onCheckout={handleCheckout} />
             </div>
           </div>
+        )}
 
-          {/* Footer */}
-          <div className="text-center">
-            <p className="text-sm text-blue-300/60">
-              No coding required • Just describe what you want
-            </p>
+        {currentTab === 'orders' && (
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <h2 className="text-2xl font-semibold text-slate-800 mb-4">Your bag</h2>
+              {cart.length === 0 ? (
+                <p className="text-slate-600">Your cart is empty. Explore products to add items.</p>
+              ) : (
+                <div className="grid gap-4">
+                  {cart.map((p) => (
+                    <div key={p._id} className="flex items-center gap-4 bg-white border border-slate-200 rounded-xl p-4">
+                      <div className="w-20 h-20 rounded-lg bg-slate-100 overflow-hidden">
+                        {p.image_url ? <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" /> : null}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{p.title}</p>
+                        <p className="text-sm text-slate-500">{p.qty} × ${p.price.toFixed(2)}</p>
+                      </div>
+                      <p className="font-semibold">${(p.price * p.qty).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <OrderDrawer cart={cart} onCheckout={handleCheckout} />
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      </main>
     </div>
   )
 }
